@@ -177,7 +177,7 @@ export default function ProductDetailPage() {
             </h1>
 
             <div className="flex items-center gap-4 mb-6">
-              <p className="text-3xl font-bold text-[#2C3E50]">${(currentPrice / 100).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-[#2C3E50]">{(currentPrice / 100).toFixed(2)} DH</p>
               {inStock ? (
                 <span className="flex items-center gap-1.5 text-green-600 text-sm font-medium bg-green-50 px-3 py-1 rounded-full">
                   <Check size={14} /> {t('product.in_stock')}
@@ -249,7 +249,7 @@ export default function ProductDetailPage() {
               ) : !inStock ? (
                 t('product.out_of_stock')
               ) : (
-                <><ShoppingBag size={20} /> {t('product.add_to_cart')} — ${((currentPrice * quantity) / 100).toFixed(2)}</>
+                <><ShoppingBag size={20} /> {t('product.add_to_cart')} — {((currentPrice * quantity) / 100).toFixed(2)} DH</>
               )}
             </button>
 
