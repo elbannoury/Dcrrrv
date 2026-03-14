@@ -52,9 +52,7 @@ export default function Header() {
           <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
             <span className="hidden sm:block">{language === 'ar' ? 'شحن مجاني على جميع الطلبات' : language === 'fr' ? 'Livraison gratuite sur toutes les commandes' : 'Free shipping on all orders'}</span>
             <span className="sm:hidden text-center w-full">{t('product.free_shipping')}</span>
-            <div className="hidden sm:flex items-center gap-4">
-              <Link to="/admin" className="hover:text-[#D4AF37] transition-colors">{t('nav.admin')}</Link>
-            </div>
+
           </div>
         </div>
 
@@ -181,7 +179,7 @@ export default function Header() {
               <Link to="/cart" onClick={() => setMobileOpen(false)} className="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors">
                 {t('nav.cart')} {cartCount > 0 && `(${cartCount})`}
               </Link>
-              <Link to="/admin" onClick={() => setMobileOpen(false)} className="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors">{t('nav.admin')}</Link>
+
             </nav>
           </div>
         </div>
