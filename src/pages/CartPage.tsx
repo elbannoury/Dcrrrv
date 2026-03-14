@@ -61,7 +61,7 @@ export default function CartPage() {
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  <p className="text-lg font-bold text-[#2C3E50] mt-2">${(item.price / 100).toFixed(2)}</p>
+                  <p className="text-lg font-bold text-[#2C3E50] mt-2">{(item.price / 100).toFixed(2)} DH</p>
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-0 border border-gray-200 rounded-lg overflow-hidden">
                       <button onClick={() => updateQuantity(item.product_id, item.variant_id, item.quantity - 1)} className="px-3 py-1.5 hover:bg-gray-50 transition-colors">
@@ -72,7 +72,7 @@ export default function CartPage() {
                         <Plus size={14} />
                       </button>
                     </div>
-                    <p className="font-bold text-[#2C3E50]">${((item.price * item.quantity) / 100).toFixed(2)}</p>
+                    <p className="font-bold text-[#2C3E50]">{((item.price * item.quantity) / 100).toFixed(2)} DH</p>
                   </div>
                 </div>
               </div>
@@ -87,7 +87,7 @@ export default function CartPage() {
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{t('cart.subtotal')}</span>
-                  <span className="font-medium">${(cartTotal / 100).toFixed(2)}</span>
+                  <span className="font-medium">{(cartTotal / 100).toFixed(2)} DH</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">{t('cart.shipping')}</span>
@@ -95,7 +95,7 @@ export default function CartPage() {
                 </div>
                 <div className="border-t pt-3 flex justify-between">
                   <span className="font-bold text-[#2C3E50]">{t('cart.total')}</span>
-                  <span className="font-bold text-xl text-[#2C3E50]">${(cartTotal / 100).toFixed(2)}</span>
+                  <span className="font-bold text-xl text-[#2C3E50]">{(cartTotal / 100).toFixed(2)} DH</span>
                 </div>
               </div>
 
