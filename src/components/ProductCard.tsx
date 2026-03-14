@@ -91,7 +91,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
           <h3 className="text-sm font-semibold text-gray-800 mb-2 line-clamp-1 group-hover:text-[#D4AF37] transition-colors">{product.name}</h3>
         </Link>
         <div className="flex items-center justify-between">
-          <p className="text-lg font-bold text-[#2C3E50]">${(price / 100).toFixed(2)}</p>
+          <p className="text-lg font-bold text-[#2C3E50]">{(price / 100).toFixed(2)} DH</p>
           <span className="text-[10px] text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded-full">{t('product.free_shipping')}</span>
         </div>
       </div>
