@@ -54,7 +54,7 @@ export default function OrderConfirmationPage() {
                       {item.variant_title && <span className="text-gray-400 ml-2">({item.variant_title})</span>}
                       <span className="text-gray-400 ml-2">x{item.quantity}</span>
                     </div>
-                    <span className="font-medium">${(item.total / 100).toFixed(2)}</span>
+                    <span className="font-medium">{(item.total / 100).toFixed(2)} DH</span>
                   </div>
                 ))}
               </div>
@@ -63,7 +63,7 @@ export default function OrderConfirmationPage() {
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{t('cart.subtotal')}</span>
-                <span>${((order.subtotal || 0) / 100).toFixed(2)}</span>
+                <span>{((order.subtotal || 0) / 100).toFixed(2)} DH</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{t('cart.shipping')}</span>
@@ -71,11 +71,11 @@ export default function OrderConfirmationPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">{t('cart.tax')}</span>
-                <span>${((order.tax || 0) / 100).toFixed(2)}</span>
+                <span>{((order.tax || 0) / 100).toFixed(2)} DH</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>{t('cart.total')}</span>
-                <span className="text-[#D4AF37]">${((order.total || 0) / 100).toFixed(2)}</span>
+                <span className="text-[#D4AF37]">{((order.total || 0) / 100).toFixed(2)} DH</span>
               </div>
             </div>
           </div>
