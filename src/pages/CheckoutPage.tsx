@@ -209,15 +209,15 @@ export default function CheckoutPage() {
                       {item.variant_title && <p className="text-xs text-gray-400">{item.variant_title}</p>}
                       <p className="text-xs text-gray-500">x{item.quantity}</p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-800">${((item.price * item.quantity) / 100).toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-gray-800">{((item.price * item.quantity) / 100).toFixed(2)} DH</p>
                   </div>
                 ))}
               </div>
               <div className="border-t pt-4 space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('cart.subtotal')}</span><span className="font-medium">${(subtotal / 100).toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('cart.subtotal')}</span><span className="font-medium">{(subtotal / 100).toFixed(2)} DH</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">{t('cart.shipping')}</span><span className="font-medium text-green-600">{t('cart.free_shipping')}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('cart.tax')} {taxRate > 0 && `(${taxRate}%)`}</span><span className="font-medium">${(tax / 100).toFixed(2)}</span></div>
-                <div className="border-t pt-3 flex justify-between"><span className="font-bold text-[#2C3E50]">{t('cart.total')}</span><span className="font-bold text-xl text-[#2C3E50]">${(total / 100).toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">{t('cart.tax')} {taxRate > 0 && `(${taxRate}%)`}</span><span className="font-medium">{(tax / 100).toFixed(2)} DH</span></div>
+                <div className="border-t pt-3 flex justify-between"><span className="font-bold text-[#2C3E50]">{t('cart.total')}</span><span className="font-bold text-xl text-[#2C3E50]">{(total / 100).toFixed(2)} DH</span></div>
               </div>
             </div>
           </div>
