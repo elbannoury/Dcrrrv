@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase';
-import { Search, ShoppingBag, Menu, X, Globe, ChevronDown } from 'lucide-react';
+import { Search, ShoppingBag, Menu, X, Globe } from 'lucide-react';
 
 export default function Header() {
   const { t, language, setLanguage, dir } = useLanguage();
@@ -52,7 +52,6 @@ export default function Header() {
           <div className="max-w-7xl mx-auto px-4 flex items-center justify-between">
             <span className="hidden sm:block">{language === 'ar' ? 'شحن مجاني على جميع الطلبات' : language === 'fr' ? 'Livraison gratuite sur toutes les commandes' : 'Free shipping on all orders'}</span>
             <span className="sm:hidden text-center w-full">{t('product.free_shipping')}</span>
-
           </div>
         </div>
 
@@ -179,7 +178,6 @@ export default function Header() {
               <Link to="/cart" onClick={() => setMobileOpen(false)} className="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors">
                 {t('nav.cart')} {cartCount > 0 && `(${cartCount})`}
               </Link>
-
             </nav>
           </div>
         </div>
