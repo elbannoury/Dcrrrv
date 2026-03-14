@@ -160,10 +160,10 @@ export default function ProductsPage() {
                 <div className="flex flex-wrap gap-2">
                   {[
                     { label: 'All', range: [0, 300000] as [number, number] },
-                    { label: 'Under $500', range: [0, 50000] as [number, number] },
-                    { label: '$500 - $1000', range: [50000, 100000] as [number, number] },
-                    { label: '$1000 - $2000', range: [100000, 200000] as [number, number] },
-                    { label: 'Over $2000', range: [200000, 300000] as [number, number] },
+                    { label: 'Under 500 DH', range: [0, 50000] as [number, number] },
+                    { label: '500 - 1000 DH', range: [50000, 100000] as [number, number] },
+                    { label: '1000 - 2000 DH', range: [100000, 200000] as [number, number] },
+                    { label: 'Over 2000 DH', range: [200000, 300000] as [number, number] },
                   ].map(item => (
                     <button
                       key={item.label}
