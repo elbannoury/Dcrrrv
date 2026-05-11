@@ -14,7 +14,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const adminLogin = (password: string) => {
-    if (password === 'decrv2024') {
+    if (password === 'OMAR@dcrvv1') {
       setIsAdmin(true);
       localStorage.setItem('decrv_admin', 'true');
       return true;
