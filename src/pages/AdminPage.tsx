@@ -1,14 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import {
-  Package, ShoppingCart, Plus, Pencil, Trash2, Save, X,
-  LogOut, Lock, MessageCircle, Upload, ImagePlus, Loader2,
-} from 'lucide-react';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import { Package, ShoppingCart, Plus, Pencil, Trash2, Save, X, LogOut, Lock, MessageCircle, Eye, EyeOff } from 'lucide-react';
 
 interface ProductForm {
   name: string;
@@ -18,150 +14,19 @@ interface ProductForm {
   sku: string;
   inventory_qty: string;
   product_type: string;
-  imageUrls: string;      // comma-separated fallback URLs (kept for compatibility)
+  images: string;
   status: string;
   tags: string;
 }
 
 const emptyForm: ProductForm = {
-  name: '', handle: '', description: '', price: '', sku: '',
-  inventory_qty: '10', product_type: '', imageUrls: '',
-  status: 'active', tags: '',
+  name: '', handle: '', description: '', price: '', sku: '', inventory_qty: '10',
+  product_type: '', images: '', status: 'active', tags: '',
 };
-
-// ─── Supabase Storage helpers ─────────────────────────────────────────────────
-
-/**
- * Upload one File to Supabase Storage bucket "product-images".
- * Returns the public URL on success, throws on error.
- *
- * SETUP (once, in Supabase dashboard):
- *   1. Storage → New bucket → Name: "product-images" → Public: ON
- *   2. Storage → Policies → Add policy → allow INSERT for anon (or authenticated)
- */
-async function uploadImageToSupabase(file: File): Promise<string> {
-  const ext = file.name.split('.').pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-  const { error } = await supabase.storage
-    .from('product-images')
-    .upload(fileName, file, { cacheControl: '3600', upsert: false });
-
-  if (error) throw new Error(error.message);
-
-  const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
-  return data.publicUrl;
-}
-
-// ─── ImageUploader sub-component ─────────────────────────────────────────────
-
-interface ImageUploaderProps {
-  existingUrls: string[];           // already-saved URLs (edit mode)
-  onUrlsChange: (urls: string[]) => void;
-}
-
-function ImageUploader({ existingUrls, onUrlsChange }: ImageUploaderProps) {
-  const [previews, setPreviews] = useState<string[]>(existingUrls);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // keep parent in sync whenever previews change
-  useEffect(() => { onUrlsChange(previews); }, [previews]);
-
-  const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setError('');
-    setUploading(true);
-
-    const newUrls: string[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) { setError('Only image files are allowed.'); continue; }
-      if (file.size > 5 * 1024 * 1024) { setError('Each image must be under 5 MB.'); continue; }
-      try {
-        const url = await uploadImageToSupabase(file);
-        newUrls.push(url);
-      } catch (e: any) {
-        setError(`Upload failed: ${e.message}`);
-      }
-    }
-
-    setPreviews(prev => [...prev, ...newUrls]);
-    setUploading(false);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  const removeImage = (index: number) => {
-    setPreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    handleFiles(e.dataTransfer.files);
-  };
-
-  return (
-    <div className="space-y-3">
-      {/* Drop zone */}
-      <div
-        onDrop={onDrop}
-        onDragOver={e => e.preventDefault()}
-        onClick={() => inputRef.current?.click()}
-        className="relative border-2 border-dashed border-gray-200 rounded-xl p-6 cursor-pointer hover:border-[#D4AF37] hover:bg-[#D4AF37]/5 transition-colors text-center"
-      >
-        {uploading ? (
-          <div className="flex flex-col items-center gap-2 text-[#D4AF37]">
-            <Loader2 size={24} className="animate-spin" />
-            <span className="text-sm font-medium">Uploading…</span>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-gray-400">
-            <ImagePlus size={28} />
-            <span className="text-sm">
-              <span className="font-medium text-[#D4AF37]">Click to upload</span> or drag & drop
-            </span>
-            <span className="text-xs">PNG, JPG, WEBP — max 5 MB each</span>
-          </div>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={e => handleFiles(e.target.files)}
-        />
-      </div>
-
-      {error && <p className="text-red-500 text-xs">{error}</p>}
-
-      {/* Previews */}
-      {previews.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
-          {previews.map((url, i) => (
-            <div key={i} className="relative group rounded-lg overflow-hidden aspect-square bg-gray-100">
-              <img src={url} alt="" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); removeImage(i); }}
-                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main AdminPage ───────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const { t } = useLanguage();
   const { isAdmin, adminLogin, adminLogout } = useAuth();
-
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'whatsapp'>('products');
@@ -171,7 +36,6 @@ export default function AdminPage() {
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ProductForm>(emptyForm);
-  const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappApiKey, setWhatsappApiKey] = useState('');
   const [whatsappSaved, setWhatsappSaved] = useState(false);
@@ -191,41 +55,24 @@ export default function AdminPage() {
 
   const fetchProducts = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('ecom_products')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data } = await supabase.from('ecom_products').select('*').order('created_at', { ascending: false });
     setProducts(data || []);
     setLoading(false);
   };
 
   const fetchOrders = async () => {
-    const { data } = await supabase
-      .from('ecom_orders')
-      .select('*, items:ecom_order_items(*)')
-      .order('created_at', { ascending: false })
-      .limit(50);
+    const { data } = await supabase.from('ecom_orders').select('*, items:ecom_order_items(*)').order('created_at', { ascending: false }).limit(50);
     setOrders(data || []);
   };
 
-  // Use a plain button handler instead of form submit to avoid HTML form issues
-  const handleLogin = () => {
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!adminLogin(password)) {
       setLoginError('Invalid password');
     }
   };
 
-  // Combine uploaded images + any manually typed fallback URLs
-  const buildImageArray = (): string[] => {
-    const manual = form.imageUrls
-      ? form.imageUrls.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
-    return [...uploadedImageUrls, ...manual];
-  };
-
   const handleSaveProduct = async () => {
-    const images = buildImageArray();
-
     const productData = {
       name: form.name,
       handle: form.handle || form.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
@@ -234,7 +81,7 @@ export default function AdminPage() {
       sku: form.sku,
       inventory_qty: parseInt(form.inventory_qty) || 0,
       product_type: form.product_type,
-      images,
+      images: form.images ? form.images.split(',').map(s => s.trim()) : [],
       status: form.status,
       tags: form.tags ? form.tags.split(',').map(s => s.trim()) : [],
       has_variants: false,
@@ -247,13 +94,13 @@ export default function AdminPage() {
       await supabase.from('ecom_products').insert(productData);
     }
 
-    closeForm();
+    setShowForm(false);
+    setEditingProduct(null);
+    setForm(emptyForm);
     fetchProducts();
   };
 
   const handleEditProduct = (product: any) => {
-    const existingImages: string[] = product.images || [];
-    setUploadedImageUrls(existingImages);
     setForm({
       name: product.name,
       handle: product.handle,
@@ -262,7 +109,7 @@ export default function AdminPage() {
       sku: product.sku || '',
       inventory_qty: String(product.inventory_qty || 0),
       product_type: product.product_type || '',
-      imageUrls: '',          // existing images loaded into ImageUploader directly
+      images: (product.images || []).join(', '),
       status: product.status || 'active',
       tags: (product.tags || []).join(', '),
     });
@@ -271,17 +118,10 @@ export default function AdminPage() {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (confirm('Are you sure you want to delete this product?')) {
       await supabase.from('ecom_products').delete().eq('id', id);
       fetchProducts();
     }
-  };
-
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingProduct(null);
-    setForm(emptyForm);
-    setUploadedImageUrls([]);
   };
 
   const handleSaveWhatsapp = () => {
@@ -289,8 +129,6 @@ export default function AdminPage() {
     setWhatsappSaved(true);
     setTimeout(() => setWhatsappSaved(false), 2000);
   };
-
-  // ── Login screen ────────────────────────────────────────────────────────────
 
   if (!isAdmin) {
     return (
@@ -305,47 +143,36 @@ export default function AdminPage() {
               {t('admin.title')}
             </h1>
             <p className="text-gray-500 text-sm mb-6">Enter admin password to continue</p>
-            <div className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
               <input
                 type="password"
                 value={password}
                 onChange={e => { setPassword(e.target.value); setLoginError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
                 placeholder="Password"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37] text-sm text-center"
               />
               {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
-              <button
-                type="button"
-                onClick={handleLogin}
-                className="w-full py-3 bg-[#2C3E50] text-white font-semibold rounded-xl hover:bg-[#34495E] transition-colors"
-              >
+              <button type="submit" className="w-full py-3 bg-[#2C3E50] text-white font-semibold rounded-xl hover:bg-[#34495E] transition-colors">
                 Login
               </button>
-            </div>
+            </form>
+
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Admin dashboard ─────────────────────────────────────────────────────────
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-[#2C3E50]" style={{ fontFamily: "'Playfair Display', serif" }}>
             {t('admin.title')}
           </h1>
-          <button
-            type="button"
-            onClick={adminLogout}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-500 transition-colors"
-          >
+          <button onClick={adminLogout} className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-500 transition-colors">
             <LogOut size={16} /> Logout
           </button>
         </div>
@@ -359,25 +186,21 @@ export default function AdminPage() {
           ].map(tab => (
             <button
               key={tab.key}
-              type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === tab.key ? 'bg-[#2C3E50] text-white' : 'text-gray-600 hover:bg-gray-50'
-              }`}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-[#2C3E50] text-white' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               {tab.icon} {tab.label}
             </button>
           ))}
         </div>
 
-        {/* ── Products Tab ─────────────────────────────────────────────────── */}
+        {/* Products Tab */}
         {activeTab === 'products' && (
           <div>
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-gray-500">{products.length} products</p>
               <button
-                type="button"
-                onClick={() => { setForm(emptyForm); setUploadedImageUrls([]); setEditingProduct(null); setShowForm(true); }}
+                onClick={() => { setForm(emptyForm); setEditingProduct(null); setShowForm(true); }}
                 className="flex items-center gap-2 px-5 py-2.5 bg-[#D4AF37] text-white rounded-xl text-sm font-medium hover:bg-[#C4A030] transition-colors"
               >
                 <Plus size={16} /> {t('admin.add_product')}
@@ -389,156 +212,61 @@ export default function AdminPage() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                 <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-bold">
-                      {editingProduct ? t('admin.edit') : t('admin.add_product')}
-                    </h2>
-                    <button type="button" onClick={closeForm} className="p-2 hover:bg-gray-100 rounded-lg">
-                      <X size={18} />
-                    </button>
+                    <h2 className="text-lg font-bold">{editingProduct ? t('admin.edit') : t('admin.add_product')}</h2>
+                    <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="p-2 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
                   </div>
-
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      {/* Name */}
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input
-                          value={form.name}
-                          onChange={e => setForm({ ...form, name: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Handle */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Handle (URL slug)</label>
-                        <input
-                          value={form.handle}
-                          onChange={e => setForm({ ...form, handle: e.target.value })}
-                          placeholder="auto-generated"
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input value={form.handle} onChange={e => setForm({...form, handle: e.target.value})} placeholder="auto-generated" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Product Type */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Product Type</label>
-                        <input
-                          value={form.product_type}
-                          onChange={e => setForm({ ...form, product_type: e.target.value })}
-                          placeholder="e.g. Sofa, Table"
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input value={form.product_type} onChange={e => setForm({...form, product_type: e.target.value})} placeholder="e.g. Sofa, Table" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Description */}
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                        <textarea
-                          value={form.description}
-                          onChange={e => setForm({ ...form, description: e.target.value })}
-                          rows={3}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Price */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Price ($) *</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={form.price}
-                          onChange={e => setForm({ ...form, price: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input type="number" step="0.01" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* SKU */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">SKU</label>
-                        <input
-                          value={form.sku}
-                          onChange={e => setForm({ ...form, sku: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input value={form.sku} onChange={e => setForm({...form, sku: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Inventory */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Inventory</label>
-                        <input
-                          type="number"
-                          value={form.inventory_qty}
-                          onChange={e => setForm({ ...form, inventory_qty: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input type="number" value={form.inventory_qty} onChange={e => setForm({...form, inventory_qty: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Status */}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                        <select
-                          value={form.status}
-                          onChange={e => setForm({ ...form, status: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        >
+                        <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30">
                           <option value="active">Active</option>
                           <option value="draft">Draft</option>
                           <option value="archived">Archived</option>
                         </select>
                       </div>
-
-                      {/* ── Image Upload ── */}
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Product Images
-                        </label>
-                        <ImageUploader
-                          existingUrls={uploadedImageUrls}
-                          onUrlsChange={setUploadedImageUrls}
-                        />
-                        {/* Fallback: manual URL entry */}
-                        <div className="mt-2">
-                          <label className="block text-xs text-gray-400 mb-1">
-                            Or paste image URLs (comma separated)
-                          </label>
-                          <input
-                            value={form.imageUrls}
-                            onChange={e => setForm({ ...form, imageUrls: e.target.value })}
-                            placeholder="https://example.com/img.jpg, ..."
-                            className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                          />
-                        </div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Image URLs (comma separated)</label>
+                        <input value={form.images} onChange={e => setForm({...form, images: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
-
-                      {/* Tags */}
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Tags (comma separated)</label>
-                        <input
-                          value={form.tags}
-                          onChange={e => setForm({ ...form, tags: e.target.value })}
-                          placeholder="featured, sale, new"
-                          className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
-                        />
+                        <input value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} placeholder="featured, sale, new" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
                     </div>
-
-                    {/* Form actions */}
                     <div className="flex gap-3 pt-4">
-                      <button
-                        type="button"
-                        onClick={closeForm}
-                        className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
-                      >
+                      <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
                         {t('admin.cancel')}
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveProduct}
-                        disabled={!form.name || !form.price}
-                        className="flex-1 py-3 bg-[#D4AF37] text-white rounded-xl text-sm font-medium hover:bg-[#C4A030] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
+                      <button onClick={handleSaveProduct} disabled={!form.name || !form.price} className="flex-1 py-3 bg-[#D4AF37] text-white rounded-xl text-sm font-medium hover:bg-[#C4A030] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                         <Save size={16} /> {t('admin.save')}
                       </button>
                     </div>
@@ -549,140 +277,82 @@ export default function AdminPage() {
 
             {/* Products Table */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {loading ? (
-                <div className="flex items-center justify-center py-16 text-gray-400">
-                  <Loader2 size={24} className="animate-spin mr-2" /> Loading…
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        {['Product', 'Type', 'Price', 'Stock', 'Status', 'Actions'].map(h => (
-                          <th
-                            key={h}
-                            className={`px-4 py-3 text-xs font-medium text-gray-500 uppercase ${h === 'Actions' ? 'text-right' : 'text-left'}`}
-                          >
-                            {h}
-                          </th>
-                        ))}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Product</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Price</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Stock</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {products.map(product => (
+                      <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                              {product.images?.[0] && <img src={product.images[0]} alt="" className="w-full h-full object-cover" />}
+                            </div>
+                            <span className="text-sm font-medium text-gray-800 truncate max-w-[200px]">{product.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{product.product_type}</td>
+                        <td className="px-4 py-3 text-sm font-medium">${(product.price / 100).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{product.inventory_qty}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${product.status === 'active' ? 'bg-green-100 text-green-700' : product.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {product.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => handleEditProduct(product)} className="p-2 hover:bg-blue-50 rounded-lg text-blue-500 transition-colors"><Pencil size={14} /></button>
+                            <button onClick={() => handleDeleteProduct(product.id)} className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {products.map(product => (
-                        <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                                {product.images?.[0] && (
-                                  <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
-                                )}
-                              </div>
-                              <span className="text-sm font-medium text-gray-800 truncate max-w-[200px]">
-                                {product.name}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{product.product_type}</td>
-                          <td className="px-4 py-3 text-sm font-medium">${(product.price / 100).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{product.inventory_qty}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${
-                              product.status === 'active'
-                                ? 'bg-green-100 text-green-700'
-                                : product.status === 'draft'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              {product.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleEditProduct(product)}
-                                className="p-2 hover:bg-blue-50 rounded-lg text-blue-500 transition-colors"
-                              >
-                                <Pencil size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {products.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
-                            No products yet
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ── Orders Tab ───────────────────────────────────────────────────── */}
+        {/* Orders Tab */}
         {activeTab === 'orders' && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    {['Order', 'Date', 'Status', 'Items', 'Total'].map((h, i) => (
-                      <th
-                        key={h}
-                        className={`px-4 py-3 text-xs font-medium text-gray-500 uppercase ${i === 4 ? 'text-right' : 'text-left'}`}
-                      >
-                        {h}
-                      </th>
-                    ))}
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Order</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Items</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {orders.map(order => (
                     <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono text-gray-800">
-                        #{order.id.slice(0, 8).toUpperCase()}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {new Date(order.created_at).toLocaleDateString()}
-                      </td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-800">#{order.id.slice(0, 8).toUpperCase()}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${
-                          order.status === 'paid'
-                            ? 'bg-green-100 text-green-700'
-                            : order.status === 'shipped'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${order.status === 'paid' ? 'bg-green-100 text-green-700' : order.status === 'shipped' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {order.items?.length || 0} items
-                      </td>
-                      <td className="px-4 py-3 text-sm font-bold text-right">
-                        ${((order.total || 0) / 100).toFixed(2)}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{order.items?.length || 0} items</td>
+                      <td className="px-4 py-3 text-sm font-bold text-right">${((order.total || 0) / 100).toFixed(2)}</td>
                     </tr>
                   ))}
                   {orders.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
-                        No orders yet
-                      </td>
-                    </tr>
+                    <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No orders yet</td></tr>
                   )}
                 </tbody>
               </table>
@@ -690,7 +360,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── WhatsApp Tab ─────────────────────────────────────────────────── */}
+        {/* WhatsApp Tab */}
         {activeTab === 'whatsapp' && (
           <div className="max-w-xl">
             <div className="bg-white rounded-2xl p-6 shadow-sm">
@@ -706,9 +376,7 @@ export default function AdminPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                    WhatsApp Phone Number (with country code)
-                  </label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">WhatsApp Phone Number (with country code)</label>
                   <input
                     type="text"
                     value={whatsappNumber}
@@ -732,17 +400,9 @@ export default function AdminPage() {
                   <p>1. Add +34 644 51 95 23 to your phone contacts</p>
                   <p>2. Send "I allow callmebot to send me messages" to this number on WhatsApp</p>
                   <p>3. You will receive your API key</p>
-                  <a
-                    href="https://www.callmebot.com/blog/free-api-whatsapp-messages/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-green-600 hover:underline block mt-2"
-                  >
-                    Learn more at callmebot.com
-                  </a>
+                  <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline block mt-2">Learn more at callmebot.com</a>
                 </div>
                 <button
-                  type="button"
                   onClick={handleSaveWhatsapp}
                   className="w-full py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
                 >
