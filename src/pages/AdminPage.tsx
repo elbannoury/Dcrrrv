@@ -156,7 +156,7 @@ export default function AdminPage() {
                 Login
               </button>
             </form>
-
+            <p className="text-xs text-gray-400 mt-4">Default: decrv2024</p>
           </div>
         </div>
       </div>
