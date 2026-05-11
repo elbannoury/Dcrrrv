@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import { Package, ShoppingCart, Plus, Pencil, Trash2, Save, X, LogOut, Lock, MessageCircle, Eye, EyeOff } from 'lucide-react';
+import { Package, ShoppingCart, Plus, Pencil, Trash2, Save, X, LogOut, Lock, MessageCircle, Eye, EyeOff, Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ProductForm {
   name: string;
@@ -14,14 +15,14 @@ interface ProductForm {
   sku: string;
   inventory_qty: string;
   product_type: string;
-  images: string;
+  images: string[];
   status: string;
   tags: string;
 }
 
 const emptyForm: ProductForm = {
   name: '', handle: '', description: '', price: '', sku: '', inventory_qty: '10',
-  product_type: '', images: '', status: 'active', tags: '',
+  product_type: '', images: [], status: 'active', tags: '',
 };
 
 export default function AdminPage() {
@@ -33,12 +34,14 @@ export default function AdminPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [whatsappApiKey, setWhatsappApiKey] = useState('');
   const [whatsappSaved, setWhatsappSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -72,6 +75,46 @@ export default function AdminPage() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const newImages = [...form.images];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error: uploadError, data } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        toast.error(`Error uploading image: ${uploadError.message}`);
+        continue;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(filePath);
+
+      newImages.push(publicUrl);
+    }
+
+    setForm({ ...form, images: newImages });
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = [...form.images];
+    newImages.splice(index, 1);
+    setForm({ ...form, images: newImages });
+  };
+
   const handleSaveProduct = async () => {
     const productData = {
       name: form.name,
@@ -81,7 +124,7 @@ export default function AdminPage() {
       sku: form.sku,
       inventory_qty: parseInt(form.inventory_qty) || 0,
       product_type: form.product_type,
-      images: form.images ? form.images.split(',').map(s => s.trim()) : [],
+      images: form.images,
       status: form.status,
       tags: form.tags ? form.tags.split(',').map(s => s.trim()) : [],
       has_variants: false,
@@ -90,8 +133,10 @@ export default function AdminPage() {
 
     if (editingProduct) {
       await supabase.from('ecom_products').update(productData).eq('id', editingProduct);
+      toast.success('Product updated successfully');
     } else {
       await supabase.from('ecom_products').insert(productData);
+      toast.success('Product created successfully');
     }
 
     setShowForm(false);
@@ -109,7 +154,7 @@ export default function AdminPage() {
       sku: product.sku || '',
       inventory_qty: String(product.inventory_qty || 0),
       product_type: product.product_type || '',
-      images: (product.images || []).join(', '),
+      images: Array.isArray(product.images) ? product.images : [],
       status: product.status || 'active',
       tags: (product.tags || []).join(', '),
     });
@@ -121,6 +166,7 @@ export default function AdminPage() {
     if (confirm('Are you sure you want to delete this product?')) {
       await supabase.from('ecom_products').delete().eq('id', id);
       fetchProducts();
+      toast.success('Product deleted');
     }
   };
 
@@ -156,7 +202,6 @@ export default function AdminPage() {
                 Login
               </button>
             </form>
-            <p className="text-xs text-gray-400 mt-4">Default: decrv2024</p>
           </div>
         </div>
       </div>
@@ -221,6 +266,40 @@ export default function AdminPage() {
                         <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
                         <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
+                      
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Product Images</label>
+                        <div className="grid grid-cols-4 gap-4 mb-4">
+                          {form.images.map((url, idx) => (
+                            <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-gray-50 group">
+                              <img src={url} alt="" className="w-full h-full object-cover" />
+                              <button 
+                                onClick={() => removeImage(idx)}
+                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                          <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 hover:border-[#D4AF37] hover:bg-[#D4AF37]/5 transition-all text-gray-400 hover:text-[#D4AF37]"
+                          >
+                            {uploading ? <Loader2 className="animate-spin" size={20} /> : <Upload size={20} />}
+                            <span className="text-[10px] font-medium">{uploading ? 'Uploading...' : 'Upload'}</span>
+                          </button>
+                          <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileUpload} 
+                            multiple 
+                            accept="image/*" 
+                            className="hidden" 
+                          />
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Handle (URL slug)</label>
                         <input value={form.handle} onChange={e => setForm({...form, handle: e.target.value})} placeholder="auto-generated" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
@@ -242,7 +321,7 @@ export default function AdminPage() {
                         <input value={form.sku} onChange={e => setForm({...form, sku: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Inventory</label>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Inventory Qty</label>
                         <input type="number" value={form.inventory_qty} onChange={e => setForm({...form, inventory_qty: e.target.value})} className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
                       <div>
@@ -254,20 +333,16 @@ export default function AdminPage() {
                         </select>
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Image URLs (comma separated)</label>
-                        <input value={form.images} onChange={e => setForm({...form, images: e.target.value})} placeholder="https://..." className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
-                      </div>
-                      <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Tags (comma separated)</label>
-                        <input value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} placeholder="featured, sale, new" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
+                        <input value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} placeholder="featured, new, sale" className="w-full px-4 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30" />
                       </div>
                     </div>
-                    <div className="flex gap-3 pt-4">
-                      <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
-                        {t('admin.cancel')}
+                    <div className="pt-4 flex gap-3">
+                      <button onClick={handleSaveProduct} className="flex-1 py-3 bg-[#2C3E50] text-white font-semibold rounded-xl hover:bg-[#34495E] transition-colors flex items-center justify-center gap-2">
+                        <Save size={18} /> {editingProduct ? 'Update Product' : 'Create Product'}
                       </button>
-                      <button onClick={handleSaveProduct} disabled={!form.name || !form.price} className="flex-1 py-3 bg-[#D4AF37] text-white rounded-xl text-sm font-medium hover:bg-[#C4A030] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                        <Save size={16} /> {t('admin.save')}
+                      <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="px-6 py-3 border border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-colors">
+                        Cancel
                       </button>
                     </div>
                   </div>
@@ -276,42 +351,50 @@ export default function AdminPage() {
             )}
 
             {/* Products Table */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Product</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Price</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Stock</th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Inventory</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-gray-50">
                     {products.map(product => (
-                      <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3">
+                      <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                              {product.images?.[0] && <img src={product.images[0]} alt="" className="w-full h-full object-cover" />}
+                            <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0 border border-gray-100">
+                              {product.images?.[0] ? (
+                                <img src={product.images[0]} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon size={20} /></div>
+                              )}
                             </div>
-                            <span className="text-sm font-medium text-gray-800 truncate max-w-[200px]">{product.name}</span>
+                            <div>
+                              <div className="text-sm font-bold text-[#2C3E50]">{product.name}</div>
+                              <div className="text-[10px] text-gray-400 font-mono">{product.sku || 'NO SKU'}</div>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{product.product_type}</td>
-                        <td className="px-4 py-3 text-sm font-medium">${(product.price / 100).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{product.inventory_qty}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${product.status === 'active' ? 'bg-green-100 text-green-700' : product.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium ${
+                            product.status === 'active' ? 'bg-green-100 text-green-700' : 
+                            product.status === 'draft' ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-700'
+                          }`}>
                             {product.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => handleEditProduct(product)} className="p-2 hover:bg-blue-50 rounded-lg text-blue-500 transition-colors"><Pencil size={14} /></button>
-                            <button onClick={() => handleDeleteProduct(product.id)} className="p-2 hover:bg-red-50 rounded-lg text-red-500 transition-colors"><Trash2 size={14} /></button>
+                        <td className="px-6 py-4 text-sm text-gray-600">{product.inventory_qty} in stock</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#2C3E50]">${(product.price / 100).toFixed(2)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleEditProduct(product)} className="p-2 text-gray-400 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-lg transition-all"><Pencil size={16} /></button>
+                            <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>
@@ -325,89 +408,83 @@ export default function AdminPage() {
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Order</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Items</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center border border-gray-100">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-50 rounded-full flex items-center justify-center text-gray-400">
+              <ShoppingCart size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-[#2C3E50] mb-1">Orders Management</h3>
+            <p className="text-gray-500 text-sm mb-6">View and manage your customer orders here.</p>
+            <div className="max-w-4xl mx-auto text-left">
+              {orders.length === 0 ? (
+                <p className="text-center text-gray-400 py-10">No orders found yet.</p>
+              ) : (
+                <div className="space-y-4">
                   {orders.map(order => (
-                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono text-gray-800">#{order.id.slice(0, 8).toUpperCase()}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{new Date(order.created_at).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${order.status === 'paid' ? 'bg-green-100 text-green-700' : order.status === 'shipped' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{order.items?.length || 0} items</td>
-                      <td className="px-4 py-3 text-sm font-bold text-right">${((order.total || 0) / 100).toFixed(2)}</td>
-                    </tr>
+                    <div key={order.id} className="border rounded-xl p-4 hover:border-[#D4AF37] transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <span className="text-xs font-mono text-gray-400">#{order.id.slice(0,8)}</span>
+                          <h4 className="font-bold text-[#2C3E50]">{order.customer_name}</h4>
+                        </div>
+                        <span className="text-sm font-bold text-[#D4AF37]">${(order.total_amount / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mb-3">
+                        {order.items?.length || 0} items • {new Date(order.created_at).toLocaleDateString()}
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">{order.status}</span>
+                        <span className="px-2 py-0.5 bg-gray-50 text-gray-600 rounded text-[10px] font-bold uppercase">{order.payment_status}</span>
+                      </div>
+                    </div>
                   ))}
-                  {orders.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No orders yet</td></tr>
-                  )}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* WhatsApp Tab */}
         {activeTab === 'whatsapp' && (
-          <div className="max-w-xl">
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <MessageCircle size={24} className="text-green-600" />
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center text-green-600">
+                  <MessageCircle size={24} />
                 </div>
                 <div>
-                  <h2 className="font-bold text-gray-800">WhatsApp Notifications</h2>
-                  <p className="text-xs text-gray-500">Receive order notifications via CallMeBot</p>
+                  <h3 className="text-lg font-bold text-[#2C3E50]">WhatsApp Integration</h3>
+                  <p className="text-xs text-gray-500">Configure your WhatsApp notifications</p>
                 </div>
               </div>
-
+              
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">WhatsApp Phone Number (with country code)</label>
-                  <input
-                    type="text"
-                    value={whatsappNumber}
+                  <label className="block text-xs font-medium text-gray-500 mb-1">WhatsApp Number (with country code)</label>
+                  <input 
+                    type="text" 
+                    value={whatsappNumber} 
                     onChange={e => setWhatsappNumber(e.target.value)}
-                    placeholder="+212700720490"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 text-sm"
+                    placeholder="+212600000000"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">CallMeBot API Key</label>
-                  <input
-                    type="text"
-                    value={whatsappApiKey}
+                  <label className="block text-xs font-medium text-gray-500 mb-1">API Key (Optional)</label>
+                  <input 
+                    type="password" 
+                    value={whatsappApiKey} 
                     onChange={e => setWhatsappApiKey(e.target.value)}
-                    placeholder="Your CallMeBot API key"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 text-sm"
+                    placeholder="Enter your API key"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-sm"
                   />
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1">
-                  <p className="font-medium text-gray-700">How to get your API key:</p>
-                  <p>1. Add +34 644 51 95 23 to your phone contacts</p>
-                  <p>2. Send "I allow callmebot to send me messages" to this number on WhatsApp</p>
-                  <p>3. You will receive your API key</p>
-                  <a href="https://www.callmebot.com/blog/free-api-whatsapp-messages/" target="_blank" rel="noopener noreferrer" className="text-green-600 hover:underline block mt-2">Learn more at callmebot.com</a>
-                </div>
-                <button
+                <button 
                   onClick={handleSaveWhatsapp}
-                  className="w-full py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                  className={`w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                    whatsappSaved ? 'bg-green-500 text-white' : 'bg-[#2C3E50] text-white hover:bg-[#34495E]'
+                  }`}
                 >
-                  <Save size={16} />
-                  {whatsappSaved ? 'Saved!' : 'Save WhatsApp Settings'}
+                  {whatsappSaved ? <><Save size={18} /> Saved!</> : 'Save Configuration'}
                 </button>
               </div>
             </div>
