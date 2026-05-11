@@ -20,7 +20,6 @@ export default function ProductDetailPage() {
   const [activeTab, setActiveTab] = useState('description');
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [selectedSize, setSelectedSize] = useState('');
-  const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -29,7 +28,6 @@ export default function ProductDetailPage() {
       setSelectedVariant(null);
       setSelectedSize('');
       setQuantity(1);
-      setActiveImage(0);
 
       const { data } = await supabase
         .from('ecom_products')
@@ -145,7 +143,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  const images = Array.isArray(product.images) ? product.images : [];
+  const metadata = product.metadata || {};
 
   return (
     <div className="min-h-screen bg-[#FAF9F6]">
@@ -163,26 +161,11 @@ export default function ProductDetailPage() {
 
         {/* Product */}
         <div className="grid md:grid-cols-2 gap-8 lg:gap-14">
-          {/* Image Gallery */}
-          <div className="space-y-4">
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-white shadow-sm">
-              <img src={images[activeImage] || '/placeholder.svg'} alt={product.name} className="w-full h-full object-cover" />
-              {product.tags?.includes('sale') && (
-                <span className="absolute top-4 left-4 px-4 py-1.5 bg-red-500 text-white text-xs font-bold uppercase rounded-full">Sale</span>
-              )}
-            </div>
-            {images.length > 1 && (
-              <div className="grid grid-cols-5 gap-3">
-                {images.map((img: string, idx: number) => (
-                  <button 
-                    key={idx} 
-                    onClick={() => setActiveImage(idx)}
-                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${activeImage === idx ? 'border-[#D4AF37]' : 'border-transparent hover:border-gray-200'}`}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
+          {/* Image */}
+          <div className="relative aspect-square rounded-2xl overflow-hidden bg-white shadow-sm">
+            <img src={product.images?.[0]} alt={product.name} className="w-full h-full object-cover" />
+            {product.tags?.includes('sale') && (
+              <span className="absolute top-4 left-4 px-4 py-1.5 bg-red-500 text-white text-xs font-bold uppercase rounded-full">Sale</span>
             )}
           </div>
 
@@ -288,20 +271,59 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="mt-12 md:mt-20">
+          <div className="flex border-b">
+            {['description', 'specifications'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                  activeTab === tab ? 'text-[#2C3E50]' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {t(`product.${tab}`)}
+                {activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4AF37]" />}
+              </button>
+            ))}
+          </div>
+          <div className="py-8">
+            {activeTab === 'description' ? (
+              <p className="text-gray-600 text-sm leading-relaxed max-w-3xl">{product.description}</p>
+            ) : (
+              <div className="max-w-lg">
+                {Object.entries(metadata).map(([key, value]) => (
+                  <div key={key} className="flex justify-between py-3 border-b border-gray-100 last:border-0">
+                    <span className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                    <span className="text-sm font-medium text-gray-800">{String(value)}</span>
+                  </div>
+                ))}
+                {product.sku && (
+                  <div className="flex justify-between py-3 border-b border-gray-100">
+                    <span className="text-sm text-gray-500">SKU</span>
+                    <span className="text-sm font-medium text-gray-800">{product.sku}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div className="mt-20">
-            <h2 className="text-2xl font-bold text-[#2C3E50] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <div className="mt-12 mb-8">
+            <h2 className="text-xl md:text-2xl font-bold text-[#2C3E50] mb-8" style={{ fontFamily: "'Playfair Display', serif" }}>
               {t('product.related')}
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {relatedProducts.map(p => (
-                <ProductCard key={p.id} product={p} />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+              {relatedProducts.map((p, i) => (
+                <ProductCard key={p.id} product={p} index={i} />
               ))}
             </div>
           </div>
         )}
       </div>
+
       <Footer />
     </div>
   );
